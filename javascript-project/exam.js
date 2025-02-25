@@ -1,266 +1,105 @@
-class Question {
-    constructor(title, image, category, options, correctAnswer) {
-        this.title = title;
-        this.image = image;
-        this.category = category;
-        this.options = options;
-        this.correctAnswer = correctAnswer;
-    }
-}
-
-class Exam {
-    constructor(questionsData) {
-        this.questions = [];
-        for (let i = 0; i < questionsData.length; i++) {
-            const q = questionsData[i];
-            this.questions.push(new Question(q.title, q.image, q.category, q.options, q.correctAnswer));
-        }
-        
-        this.shuffledQuestions = this.shuffleArray([...this.questions]);
+class Quiz {
+    constructor(questions) {
+        this.questions = this.shuffleArray(questions);
         this.currentQuestionIndex = 0;
-        this.selectedAnswers = new Array(this.questions.length).fill(null);
         this.score = 0;
-        this.timeLeft = 200; 
         this.timer = null;
-        
-        this.setupEventListeners();
+        this.username = "";
     }
-    
-    shuffleArray(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
+
+    startQuiz() {
+        this.username = document.getElementById("username").value.trim();
+        let errorSpan = document.getElementById("usernameError");
+        let inputField = document.getElementById("username");
+
+        if (!this.validateUsername(this.username)) {
+            errorSpan.innerText = "Please enter a valid name (only letters and spaces).";
+            inputField.classList.add("error");
+            return;
         }
-        return array;
+
+        errorSpan.innerText = "";
+        inputField.classList.remove("error");
+
+        document.getElementById("startScreen").classList.add("hidden");
+        document.getElementById("quizScreen").classList.remove("hidden");
+
+        this.startTimer();
+        this.showQuestion();
     }
-    
-    setupEventListeners() {
-        document.getElementById('next-btn').addEventListener('click', () => {
-            if (this.currentQuestionIndex < this.shuffledQuestions.length - 1) {
-                this.currentQuestionIndex++;
-                this.displayQuestion();
-            } else {
-                this.showResults();
-            }
-        });
-        
-        const retryBtn = document.querySelector('.retry-btn');
-        if (retryBtn) {
-            retryBtn.addEventListener('click', () => location.reload());
-        }
+
+    validateUsername(username) {
+        return /^[a-zA-Z ]+$/.test(username);
     }
-    
+
     startTimer() {
-        const timerProgress = document.getElementById('timer-progress');
-        const totalTime = 200; 
-        
-        this.updateTimerDisplay();
-        
+        let timeLeft = 60;
         this.timer = setInterval(() => {
-            this.timeLeft--;
-            this.updateTimerDisplay();
-            timerProgress.style.width = `${(this.timeLeft / totalTime) * 100}%`;
-            
-            if (this.timeLeft <= 0) {
-                clearInterval(this.timer);
-                this.showResults();
-            }
+            timeLeft--;
+            document.getElementById("timerBar").style.width = (timeLeft / 60) * 100 + "%";
+            if (timeLeft <= 0) this.endQuiz();
         }, 1000);
     }
-    
-    updateTimerDisplay() {
-        const minutes = Math.floor(this.timeLeft / 60);
-        const seconds = this.timeLeft % 60;
-        document.querySelector('.timer-text').textContent = 
-            `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+    showQuestion() {
+        let q = this.questions[this.currentQuestionIndex];
+        document.getElementById("questionText").innerText = q.title;
+        document.getElementById("questionImage").src = `https://picsum.photos/400/200?random=${Math.random()}`;
+
+        let optionsContainer = document.getElementById("optionsContainer");
+        optionsContainer.innerHTML = "";
+        document.getElementById("nextBtn").disabled = true;
+
+        let shuffledAnswers = this.shuffleArray([...q.answers]);
+        shuffledAnswers.forEach(answer => {
+            let btn = document.createElement("button");
+            btn.innerText = answer;
+            btn.onclick = () => this.selectAnswer(btn, answer);
+            optionsContainer.appendChild(btn);
+        });
     }
-    
-    updateProgressCircle() {
-        let answeredCount = 0;
-        for (let i = 0; i < this.selectedAnswers.length; i++) {
-            if (this.selectedAnswers[i] !== null) {
-                answeredCount++;
-            }
+
+    selectAnswer(button, answer) {
+        document.querySelectorAll(".options button").forEach(btn => btn.classList.remove("selected"));
+        button.classList.add("selected");
+        document.getElementById("nextBtn").disabled = false;
+
+        this.selectedAnswer = answer;
+        if (answer === this.questions[this.currentQuestionIndex].correct) this.score++;
+    }
+
+    nextQuestion() {
+        this.currentQuestionIndex++;
+        if (this.currentQuestionIndex < this.questions.length) {
+            this.showQuestion();
+        } else {
+            this.endQuiz();
         }
-        
-        document.querySelector('.progress-text').textContent = 
-            `${answeredCount}/${this.questions.length}`;
-        
-        const percentage = (answeredCount / this.questions.length) * 100;
-        const progressPath = document.getElementById('progress-path');
-        const pathLength = progressPath.getTotalLength();
-        
-        progressPath.style.strokeDasharray = pathLength;
-        progressPath.style.strokeDashoffset = pathLength - (pathLength * percentage / 100);
     }
-    
-    displayQuestion() {
-        const question = this.shuffledQuestions[this.currentQuestionIndex];
-        
-        document.querySelector('.question-number').textContent = 
-            `Question ${this.currentQuestionIndex + 1} of ${this.shuffledQuestions.length}`;
-        document.querySelector('.question-category').textContent = question.category;
-        
-        document.getElementById('question-title').textContent = question.title;
-        document.getElementById('question-image').src = question.image;
-        
-        const optionsContainer = document.getElementById('options-container');
-        optionsContainer.innerHTML = '';
-        
-        const shuffledOptions = this.shuffleArray([...question.options]);
-        for (let i = 0; i < shuffledOptions.length; i++) {
-            const option = shuffledOptions[i];
-            
-            const button = document.createElement('button');
-            button.className = 'option';
-            button.textContent = option;
-            
-            if (this.selectedAnswers[this.currentQuestionIndex] === option) {
-                button.classList.add('selected');
-            }
-            
-            const exam = this; 
-            button.addEventListener('click', function() {
-                document.querySelectorAll('.option').forEach(opt => 
-                    opt.classList.remove('selected'));
-                
-                this.classList.add('selected');
-                exam.selectedAnswers[exam.currentQuestionIndex] = option;
-                
-                document.getElementById('next-btn').disabled = false;
-                exam.updateProgressCircle();
-            });
-            
-            optionsContainer.appendChild(button);
-        }
-        
-        document.getElementById('next-btn').textContent = 
-            this.currentQuestionIndex === this.shuffledQuestions.length - 1 ? 'Finish' : 'Next';
-        
-        document.getElementById('next-btn').disabled = 
-            this.selectedAnswers[this.currentQuestionIndex] === null;
-    }
-    
-    showResults() {
+
+    endQuiz() {
         clearInterval(this.timer);
-        
-        this.score = 0;
-        for (let i = 0; i < this.shuffledQuestions.length; i++) {
-            if (this.selectedAnswers[i] === this.shuffledQuestions[i].correctAnswer) {
-                this.score++;
-            }
-        }
-        
-        document.getElementById('question-container').style.display = 'none';
-        document.getElementById('result-container').classList.remove('hidden');
-        
-        const percentage = (this.score / this.shuffledQuestions.length) * 100;
-        document.getElementById('percentage').textContent = `${Math.round(percentage)}%`;
-        
-        document.getElementById('score-text').textContent = 
-            `You answered ${this.score} out of ${this.shuffledQuestions.length} questions correctly`;
-        
-        const resultPath = document.getElementById('result-path');
-        const pathLength = resultPath.getTotalLength();
-        
-        resultPath.style.strokeDasharray = pathLength;
-        resultPath.style.strokeDashoffset = pathLength;
-        
-        setTimeout(() => {
-            resultPath.style.strokeDashoffset = pathLength - (pathLength * percentage / 100);
-        }, 100);
+        document.getElementById("quizScreen").classList.add("hidden");
+        document.getElementById("resultScreen").classList.remove("hidden");
+        document.getElementById("scoreText").innerText = `${this.username}, you scored ${this.score} out of ${this.questions.length}`;
+    }
+
+    shuffleArray(array) {
+        return array.sort(() => Math.random() - 0.5);
     }
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-    if (!localStorage.getItem('currentUser')) {
-        window.location.href = 'index.html';
-    }
+const questions = [
+    { title: "What is the capital of France?", answers: ["Paris", "London", "Berlin"], correct: "Paris" },
+    { title: "Which planet is known as the Red Planet?", answers: ["Mars", "Jupiter", "Earth"], correct: "Mars" },
+    { title: "How many legs does a spider have?", answers: ["8", "6", "4"], correct: "8" },
+    { title: "What is the largest ocean on Earth?", answers: ["Pacific", "Atlantic", "Indian"], correct: "Pacific" },
+    { title: "Which is the longest river in the world?", answers: ["Nile", "Amazon", "Yangtze"], correct: "Nile" },
+    { title: "What is the chemical symbol for gold?", answers: ["Au", "Ag", "Pb"], correct: "Au" },
+    { title: "Who wrote 'Hamlet'?", answers: ["Shakespeare", "Hemingway", "Dickens"], correct: "Shakespeare" },
+    { title: "Which gas do plants use for photosynthesis?", answers: ["Carbon Dioxide", "Oxygen", "Nitrogen"], correct: "Carbon Dioxide" },
+    { title: "What is the capital of Japan?", answers: ["Tokyo", "Seoul", "Beijing"], correct: "Tokyo" },
+    { title: "How many continents are there?", answers: ["7", "6", "5"], correct: "7" }
+];
 
-    const studentName = localStorage.getItem('currentUserFullName');
-    if (studentName) {
-        document.querySelector('.username').textContent = studentName;
-    } else {
-        console.error("❌User not Exist!");
-        document.querySelector('.username').textContent = "Student";
-    }
-    console.log("📌 Loaded Full Name:", studentName);
-
-    const questionsData = [
-        {
-            title: "What is the output of the following Python code? print(3 * 'abc')",
-            image: "https://picsum.photos/400/200?random=1",
-            category: "Python Basics",
-            options: ["abcabcabc", "3abc", "Error", "404"],
-            correctAnswer: "abcabcabc"
-        },
-        {
-            title: "Which data structure follows the Last In First Out (LIFO) principle?",
-            image: "https://picsum.photos/400/200?random=22",
-            category: "Data Structures",
-            options: ["Queue", "Stack", "Heap", "Ram"],
-            correctAnswer: "Stack"
-        },
-        {
-            title: "What is the time complexity of a binary search algorithm?",
-            image: "https://picsum.photos/400/200?random=33",
-            category: "Algorithms",
-            options: ["O(n)", "O(log n)", "O(n^2)", "O(n log n)"],
-            correctAnswer: "O(log n)"
-        },
-        {
-            title: "Which SQL clause is used to filter records?",
-            image: "https://picsum.photos/400/200?random=44",
-            category: "Databases",
-            options: ["ORDER BY", "GROUP BY", "WHERE", "HAVING"],
-            correctAnswer: "WHERE"
-        },
-        {
-            title: "What does the 'this' keyword refer to in JavaScript?",
-            image: "https://picsum.photos/400/200?random=55",
-            category: "JavaScript",
-            options: ["The current object", "The previous function", "A global variable", "None of the above"],
-            correctAnswer: "The current object"
-        },
-        {
-            title: "Which sorting algorithm has the best average-case time complexity?",
-            image: "https://picsum.photos/400/200?random=66",
-            category: "Algorithms",
-            options: ["Bubble Sort", "Merge Sort", "Selection Sort", "Insertion Sort"],
-            correctAnswer: "Merge Sort"
-        },
-        {
-            title: "Which HTTP method is used to update an existing resource?",
-            image: "https://picsum.photos/400/200?random=77",
-            category: "Web Development",
-            options: ["GET", "POST", "PUT", "DELETE"],
-            correctAnswer: "PUT"
-        },
-        {
-            title: "Which data type is immutable in Python?",
-            image: "https://picsum.photos/400/200?random=88",
-            category: "Python Basics",
-            options: ["List", "Dictionary", "String", "Set"],
-            correctAnswer: "String"
-        },
-        {
-            title: "Which protocol is used for secure communication over the web?",
-            image: "https://picsum.photos/400/200?random=99",
-            category: "Networking",
-            options: ["HTTP", "FTP", "SMTP", "HTTPS"],
-            correctAnswer: "HTTPS"
-        },
-        {
-            title: "Which database is an example of NoSQL?",
-            image: "https://picsum.photos/400/200?random=100",
-            category: "Databases",
-            options: ["MySQL", "PostgreSQL", "MongoDB", "Oracle"],
-            correctAnswer: "MongoDB"
-        }
-    ];
-
-    const exam = new Exam(questionsData);
-    exam.displayQuestion();
-    exam.startTimer();
-    exam.updateProgressCircle();
-});
+const quiz = new Quiz(questions);
